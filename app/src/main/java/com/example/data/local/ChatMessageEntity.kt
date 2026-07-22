@@ -11,5 +11,6 @@ data class ChatMessageEntity(
     val text: String,
     val timestamp: Long = System.currentTimeMillis(),
     val isBookmarked: Boolean = false,
-    val categoryTag: String = ""
+    val categoryTag: String = "",
+    val imageUri: String? = null
 )

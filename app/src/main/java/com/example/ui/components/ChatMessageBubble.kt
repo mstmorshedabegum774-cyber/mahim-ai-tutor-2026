@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,9 +41,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import com.example.R
 import com.example.data.local.ChatMessageEntity
+import com.example.ui.theme.OnUserBubbleText
 import com.example.ui.theme.StarYellow
+import com.example.ui.theme.StoryBorderColor
+import com.example.ui.theme.StoryBubbleBg
+import com.example.ui.theme.UserBubbleColor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -99,14 +106,14 @@ fun ChatMessageBubble(
             // Bubble
             val bubbleColor by animateColorAsState(
                 targetValue = if (isUser) {
-                    com.example.ui.theme.UserBubbleColor
+                    UserBubbleColor
                 } else {
-                    com.example.ui.theme.StoryBubbleBg
+                    StoryBubbleBg
                 },
                 label = "bubbleColor"
             )
 
-            val textColor = if (isUser) com.example.ui.theme.OnUserBubbleText else Color(0xFF2D3436)
+            val textColor = if (isUser) OnUserBubbleText else Color(0xFF2D3436)
 
             Surface(
                 color = bubbleColor,
@@ -118,19 +125,34 @@ fun ChatMessageBubble(
                 },
                 shadowElevation = 1.dp,
                 border = if (!isUser) {
-                    androidx.compose.foundation.BorderStroke(1.5.dp, com.example.ui.theme.StoryBorderColor)
+                    androidx.compose.foundation.BorderStroke(1.5.dp, StoryBorderColor)
                 } else null
             ) {
                 Column(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
-                    Text(
-                        text = message.text,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = textColor,
-                        lineHeight = 22.sp,
-                        fontWeight = if (isUser) FontWeight.Medium else FontWeight.Normal
-                    )
+                    if (!message.imageUri.isNullOrBlank()) {
+                        AsyncImage(
+                            model = message.imageUri,
+                            contentDescription = "Attached study image",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 220.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .padding(bottom = 8.dp)
+                        )
+                    }
+
+                    if (message.text.isNotBlank()) {
+                        Text(
+                            text = message.text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = textColor,
+                            lineHeight = 22.sp,
+                            fontWeight = if (isUser) FontWeight.Medium else FontWeight.Normal
+                        )
+                    }
 
                     // Footer with Time + Actions for Tutor
                     Row(
@@ -143,7 +165,7 @@ fun ChatMessageBubble(
                             text = formattedTime,
                             style = MaterialTheme.typography.bodySmall,
                             fontSize = 10.sp,
-                            color = if (isUser) com.example.ui.theme.OnUserBubbleText.copy(alpha = 0.8f) else Color(0xFF636E72)
+                            color = if (isUser) OnUserBubbleText.copy(alpha = 0.8f) else Color(0xFF636E72)
                         )
 
                         if (!isUser) {
@@ -166,7 +188,12 @@ fun ChatMessageBubble(
 
                             // Bookmark
                             IconButton(
-                                onClick = { onToggleBookmark(message.id, message.isBookmarked) },
+                                onClick = {
+                                    val newStatus = !message.isBookmarked
+                                    onToggleBookmark(message.id, message.isBookmarked)
+                                    val toastMsg = if (newStatus) "নোটটি সেভ নোটস এ জমা হয়েছে ⭐" else "নোটটি সরানো হয়েছে"
+                                    Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
+                                },
                                 modifier = Modifier.size(24.dp)
                             ) {
                                 Icon(

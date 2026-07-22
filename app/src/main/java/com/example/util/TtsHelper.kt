@@ -6,6 +6,7 @@ import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 
 class TtsHelper(context: Context) {
@@ -14,10 +15,10 @@ class TtsHelper(context: Context) {
     private var isInitialized = false
 
     private val _isSpeaking = MutableStateFlow(false)
-    val isSpeaking: StateFlow<Boolean> = _isSpeaking
+    val isSpeaking: StateFlow<Boolean> = _isSpeaking.asStateFlow()
 
     private val _currentlySpeakingId = MutableStateFlow<Long?>(null)
-    val currentlySpeakingId: StateFlow<Long?> = _currentlySpeakingId
+    val currentlySpeakingId: StateFlow<Long?> = _currentlySpeakingId.asStateFlow()
 
     init {
         tts = TextToSpeech(context.applicationContext) { status ->
@@ -47,6 +48,7 @@ class TtsHelper(context: Context) {
                 _currentlySpeakingId.value = null
             }
 
+            @Suppress("DEPRECATION")
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {
                 _isSpeaking.value = false
@@ -65,6 +67,14 @@ class TtsHelper(context: Context) {
         stop()
         _currentlySpeakingId.value = messageId
         _isSpeaking.value = true
+
+        val hasBengali = text.any { it in '\u0980'..'\u09FF' }
+        val targetLocale = if (hasBengali) Locale("bn", "BD") else Locale.US
+        val res = tts?.setLanguage(targetLocale)
+        if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
+            tts?.setLanguage(Locale.ENGLISH)
+        }
+
         val utteranceId = messageId?.toString() ?: "tutor_speech"
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
     }

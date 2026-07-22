@@ -35,7 +35,9 @@ class GeminiRepository {
     suspend fun generateTutorResponse(
         prompt: String,
         history: List<Pair<String, String>> = emptyList(), // Pair(sender, text)
-        learningMode: String = "GENERAL" // "GENERAL", "QUIZ", "STORY"
+        learningMode: String = "GENERAL", // "GENERAL", "QUIZ", "STORY"
+        imageBytes: ByteArray? = null,
+        imageMimeType: String = "image/jpeg"
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val apiKey = BuildConfig.GEMINI_API_KEY.ifBlank {
@@ -96,9 +98,29 @@ class GeminiRepository {
                 }
 
                 // Add current user prompt as final item
+                val userPartsArray = JSONArray()
+
+                if (imageBytes != null && imageBytes.isNotEmpty()) {
+                    val base64Data = android.util.Base64.encodeToString(imageBytes, android.util.Base64.NO_WRAP)
+                    userPartsArray.put(JSONObject().apply {
+                        put("inline_data", JSONObject().apply {
+                            put("mime_type", imageMimeType)
+                            put("data", base64Data)
+                        })
+                    })
+                }
+
+                val promptText = if (finalUserPrompt.isBlank()) {
+                    "ছবিতে থাকা পড়া বা অংকটি সহজ ভাষায় ব্যাখ্যা ও সমাধান করে দাও।"
+                } else {
+                    finalUserPrompt
+                }
+
+                userPartsArray.put(JSONObject().put("text", promptText))
+
                 contentsArray.put(JSONObject().apply {
                     put("role", "user")
-                    put("parts", JSONArray().put(JSONObject().put("text", finalUserPrompt)))
+                    put("parts", userPartsArray)
                 })
 
                 put("contents", contentsArray)

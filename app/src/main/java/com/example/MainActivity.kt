@@ -5,26 +5,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -70,9 +67,21 @@ import com.example.ui.components.CelebrationDialog
 import com.example.ui.components.ChatMessageBubble
 import com.example.ui.components.ContactDeveloperDialog
 import com.example.ui.components.ShareChatDialog
+import com.example.ui.components.SplashScreen
 import com.example.ui.components.ModeSelectorBar
 import com.example.ui.components.SubjectCategoryChips
 import com.example.ui.components.TutorHeaderBar
+import android.net.Uri
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.TextButton
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import coil.compose.AsyncImage
+import com.example.ui.components.ImagePickerButton
 import com.example.ui.components.VoiceInputButton
 import com.example.ui.theme.MyApplicationTheme
 
@@ -85,7 +94,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            MyApplicationTheme {
+            val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
+            MyApplicationTheme(darkTheme = isDarkMode) {
                 MahimTutorApp(viewModel = viewModel)
             }
         }
@@ -95,6 +105,7 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MahimTutorApp(viewModel: MainViewModel) {
+    val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val isGuest by viewModel.isGuest.collectAsStateWithLifecycle()
 
@@ -108,9 +119,20 @@ fun MahimTutorApp(viewModel: MainViewModel) {
     val currentlySpeakingId by viewModel.ttsHelper.currentlySpeakingId.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var isSearchVisible by remember { mutableStateOf(false) }
+    var chatSearchQuery by remember { mutableStateOf("") }
     var showContactDialog by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
+    var showSplashScreen by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
+
+    if (showSplashScreen) {
+        SplashScreen(
+            onSplashFinished = { showSplashScreen = false }
+        )
+        return
+    }
 
     // If no active user session and not in guest mode, show AuthScreen
     if (currentUser == null && !isGuest) {
@@ -135,9 +157,10 @@ fun MahimTutorApp(viewModel: MainViewModel) {
         }
     }
 
-    if (celebratingBadge != null) {
+    val badgeToCelebrate = celebratingBadge
+    if (badgeToCelebrate != null) {
         CelebrationDialog(
-            badgeTitle = celebratingBadge!!,
+            badgeTitle = badgeToCelebrate,
             onDismiss = { viewModel.dismissCelebration() }
         )
     }
@@ -164,6 +187,10 @@ fun MahimTutorApp(viewModel: MainViewModel) {
             TutorHeaderBar(
                 starsCount = userStats?.starsCount ?: 5,
                 currentUser = currentUser,
+                isDarkMode = isDarkMode,
+                isSearchActive = isSearchVisible,
+                onToggleSearch = { isSearchVisible = !isSearchVisible },
+                onToggleDarkMode = { viewModel.toggleDarkMode() },
                 onClearChat = { viewModel.clearChatHistory() },
                 onLogout = { viewModel.logout() },
                 onContactDeveloper = { showContactDialog = true },
@@ -219,12 +246,64 @@ fun MahimTutorApp(viewModel: MainViewModel) {
                             onModeSelected = { viewModel.setLearningMode(it) }
                         )
 
+                        // Quick Search Bar (Animated)
+                        AnimatedVisibility(
+                            visible = isSearchVisible,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ) {
+                                OutlinedTextField(
+                                    value = chatSearchQuery,
+                                    onValueChange = { chatSearchQuery = it },
+                                    placeholder = { Text("চ্যাট মেসেজ খুঁজুন (Search messages)...", fontSize = 14.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Search",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    trailingIcon = {
+                                        if (chatSearchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { chatSearchQuery = "" }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Clear search",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+
                         // Quick Subject Chips
                         SubjectCategoryChips(
                             onPromptSelected = { prompt ->
                                 inputText = prompt
                             }
                         )
+
+                        val filteredMessages = remember(messages, chatSearchQuery) {
+                            if (chatSearchQuery.isBlank()) {
+                                messages
+                            } else {
+                                messages.filter { msg ->
+                                    msg.text.contains(chatSearchQuery, ignoreCase = true)
+                                }
+                            }
+                        }
 
                         // Messages LazyColumn
                         Box(
@@ -239,7 +318,7 @@ fun MahimTutorApp(viewModel: MainViewModel) {
                                     .padding(horizontal = 16.dp),
                                 contentPadding = PaddingValues(top = 8.dp, bottom = 12.dp)
                             ) {
-                                items(messages, key = { it.id }) { message ->
+                                items(filteredMessages, key = { it.id }) { message ->
                                     ChatMessageBubble(
                                         message = message,
                                         isSpeakingThisMsg = currentlySpeakingId == message.id,
@@ -250,6 +329,29 @@ fun MahimTutorApp(viewModel: MainViewModel) {
                                             viewModel.speakMessage(text, id)
                                         }
                                     )
+                                }
+
+                                if (chatSearchQuery.isNotBlank() && filteredMessages.isEmpty()) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(32.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(
+                                                    text = "🔍 \"$chatSearchQuery\" দিয়ে কোনো মেসেজ পাওয়া যায়নি",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                TextButton(onClick = { chatSearchQuery = "" }) {
+                                                    Text("সব মেসেজ দেখাও")
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
                                 if (isLoading) {
@@ -266,64 +368,121 @@ fun MahimTutorApp(viewModel: MainViewModel) {
                             color = MaterialTheme.colorScheme.surface,
                             shadowElevation = 8.dp
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                VoiceInputButton(
-                                    onTextRecognized = { text ->
-                                        inputText = text
-                                    }
-                                )
-
-                                OutlinedTextField(
-                                    value = inputText,
-                                    onValueChange = { inputText = it },
-                                    placeholder = {
+                                // Attached Image Preview Banner
+                                if (selectedImageUri != null) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                                            .background(
+                                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .padding(8.dp)
+                                    ) {
+                                        AsyncImage(
+                                            model = selectedImageUri,
+                                            contentDescription = "Attached study image preview",
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
                                         Text(
-                                            text = when (learningMode) {
-                                                "QUIZ" -> "ধাঁধার উত্তর দাও বা প্রশ্ন করো..."
-                                                "STORY" -> "কিসের গল্প শুনতে চাও?"
-                                                else -> "মাহিমকে যেকোনো প্রশ্ন করো..."
-                                            },
-                                            fontSize = 14.sp
+                                            text = "📷 পড়াশোনার ছবি সংযুক্ত হয়েছে",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.weight(1f)
                                         )
-                                    },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(horizontal = 4.dp),
-                                    shape = RoundedCornerShape(24.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary
-                                    ),
-                                    maxLines = 3
-                                )
-
-                                IconButton(
-                                    onClick = {
-                                        if (inputText.isNotBlank()) {
-                                            val textToSend = inputText
-                                            inputText = ""
-                                            viewModel.sendMessage(textToSend)
+                                        IconButton(
+                                            onClick = { selectedImageUri = null },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Remove attached image",
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                         }
-                                    },
-                                    enabled = inputText.isNotBlank() && !isLoading,
+                                    }
+                                }
+
+                                Row(
                                     modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (inputText.isNotBlank() && !isLoading) MaterialTheme.colorScheme.primary else Color.LightGray.copy(alpha = 0.5f)
-                                        )
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Send,
-                                        contentDescription = "Send Message",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
+                                    ImagePickerButton(
+                                        onImagePicked = { uri ->
+                                            selectedImageUri = uri
+                                        }
                                     )
+
+                                    VoiceInputButton(
+                                        onTextRecognized = { text ->
+                                            inputText = text
+                                        }
+                                    )
+
+                                    OutlinedTextField(
+                                        value = inputText,
+                                        onValueChange = { inputText = it },
+                                        placeholder = {
+                                            Text(
+                                                text = when {
+                                                    selectedImageUri != null -> "ছবি সম্পর্কে প্রশ্ন বা নির্দেশনা লেখো..."
+                                                    learningMode == "QUIZ" -> "ধাঁধার উত্তর দাও বা প্রশ্ন করো..."
+                                                    learningMode == "STORY" -> "কিসের গল্প শুনতে চাও?"
+                                                    else -> "মাহিমকে যেকোনো প্রশ্ন করো..."
+                                                },
+                                                fontSize = 14.sp
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(horizontal = 4.dp),
+                                        shape = RoundedCornerShape(24.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        maxLines = 3
+                                    )
+
+                                    val canSend = (inputText.isNotBlank() || selectedImageUri != null) && !isLoading
+
+                                    IconButton(
+                                        onClick = {
+                                            if (inputText.isNotBlank() || selectedImageUri != null) {
+                                                val textToSend = inputText
+                                                val imgToSend = selectedImageUri?.toString()
+                                                inputText = ""
+                                                selectedImageUri = null
+                                                viewModel.sendMessage(textToSend, imgToSend)
+                                            }
+                                        },
+                                        enabled = canSend,
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (canSend) MaterialTheme.colorScheme.primary else Color.LightGray.copy(alpha = 0.5f)
+                                            )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Send,
+                                            contentDescription = "Send Message",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

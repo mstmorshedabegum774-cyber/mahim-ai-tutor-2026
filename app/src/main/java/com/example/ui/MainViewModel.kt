@@ -29,6 +29,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val prefs = application.getSharedPreferences("mahim_tutor_prefs", Context.MODE_PRIVATE)
 
+    // Dark Mode Theme State
+    private val _isDarkMode = MutableStateFlow(prefs.getBoolean("is_dark_mode", false))
+    val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
+
+    fun toggleDarkMode() {
+        val newValue = !_isDarkMode.value
+        _isDarkMode.value = newValue
+        prefs.edit().putBoolean("is_dark_mode", newValue).apply()
+    }
+
     // User Auth State
     private val _currentUser = MutableStateFlow<UserAccountEntity?>(null)
     val currentUser: StateFlow<UserAccountEntity?> = _currentUser.asStateFlow()
@@ -180,8 +190,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showCelebrationDialog.value = null
     }
 
-    fun sendMessage(userText: String) {
-        if (userText.isBlank() || _isLoading.value) return
+    fun sendMessage(userText: String, imageUri: String? = null) {
+        if (userText.isBlank() && imageUri.isNullOrBlank()) return
+        if (_isLoading.value) return
 
         val trimmedText = userText.trim()
         _isLoading.value = true
@@ -192,7 +203,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val userMsg = ChatMessageEntity(
                 sender = "USER",
                 text = trimmedText,
-                categoryTag = _learningMode.value
+                categoryTag = _learningMode.value,
+                imageUri = imageUri
             )
             repository.insertMessage(userMsg)
 
@@ -227,6 +239,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _showCelebrationDialog.value = newlyEarnedBadge
             }
 
+            // Read image bytes if imageUri is present
+            val imageBytes: ByteArray? = if (!imageUri.isNullOrBlank()) {
+                kotlin.runCatching {
+                    val uri = android.net.Uri.parse(imageUri)
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use {
+                        it.readBytes()
+                    }
+                }.getOrNull()
+            } else null
+
             // 3. Build context history from recent messages in Room
             val recentList = messages.value
                 .filter { it.categoryTag != "Error" && it.categoryTag != "Welcome" }
@@ -237,7 +259,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = geminiRepo.generateTutorResponse(
                 prompt = trimmedText,
                 history = recentList,
-                learningMode = _learningMode.value
+                learningMode = _learningMode.value,
+                imageBytes = imageBytes
             )
 
             result.onSuccess { tutorReply ->
@@ -246,7 +269,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     text = tutorReply,
                     categoryTag = _learningMode.value
                 )
-                repository.insertMessage(mahimMsg)
+                repository.insertMessage(mahimMsg).onSuccess { msgId ->
+                    ttsHelper.speak(tutorReply, msgId)
+                }
                 _isLoading.value = false
             }.onFailure { err ->
                 Log.e("MainViewModel", "Error getting tutor response", err)
@@ -260,7 +285,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     text = fallbackText,
                     categoryTag = _learningMode.value
                 )
-                repository.insertMessage(fallbackMsg)
+                repository.insertMessage(fallbackMsg).onSuccess { msgId ->
+                    ttsHelper.speak(fallbackText, msgId)
+                }
                 _isLoading.value = false
             }
         }

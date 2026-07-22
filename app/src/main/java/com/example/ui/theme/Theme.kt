@@ -14,23 +14,23 @@ import androidx.compose.ui.platform.LocalContext
 private val DarkColorScheme =
   darkColorScheme(
     primary = Primary80,
-    onPrimary = Color.Black,
-    primaryContainer = PrimaryContainerLight,
-    onPrimaryContainer = OnPrimaryContainerLight,
+    onPrimary = Color(0xFF1C360E),
+    primaryContainer = Color(0xFF2D3E21),
+    onPrimaryContainer = Color(0xFFE8F3D6),
     secondary = Secondary80,
-    onSecondary = Color.Black,
-    secondaryContainer = SecondaryContainerLight,
-    onSecondaryContainer = OnSecondaryContainerLight,
+    onSecondary = Color(0xFF5D1D0C),
+    secondaryContainer = Color(0xFF5D4037),
+    onSecondaryContainer = Color(0xFFFFF0EC),
     tertiary = Tertiary80,
-    onTertiary = Color.Black,
-    tertiaryContainer = TertiaryContainerLight,
-    onTertiaryContainer = OnTertiaryContainerLight,
-    background = BackgroundLight,
-    onBackground = OnSurfaceLight,
-    surface = SurfaceLight,
-    onSurface = OnSurfaceLight,
-    surfaceVariant = SurfaceVariantLight,
-    onSurfaceVariant = OnSurfaceVariantLight
+    onTertiary = Color(0xFF422C00),
+    tertiaryContainer = Color(0xFF5F4B32),
+    onTertiaryContainer = Color(0xFFFCF5E5),
+    background = Color(0xFF121411),
+    onBackground = Color(0xFFE2E3DC),
+    surface = Color(0xFF1B1E19),
+    onSurface = Color(0xFFE2E3DC),
+    surfaceVariant = Color(0xFF282C25),
+    onSurfaceVariant = Color(0xFFC3C8BD)
   )
 
 private val LightColorScheme =
@@ -58,7 +58,7 @@ private val LightColorScheme =
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
-  dynamicColor: Boolean = false,
+  dynamicColor: Boolean = true,
   content: @Composable () -> Unit,
 ) {
   val colorScheme =

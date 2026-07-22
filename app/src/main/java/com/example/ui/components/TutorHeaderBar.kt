@@ -17,7 +17,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -42,6 +45,10 @@ import com.example.ui.theme.StarYellow
 fun TutorHeaderBar(
     starsCount: Int,
     currentUser: UserAccountEntity?,
+    isDarkMode: Boolean,
+    isSearchActive: Boolean = false,
+    onToggleSearch: (() -> Unit)? = null,
+    onToggleDarkMode: () -> Unit,
     onClearChat: () -> Unit,
     onLogout: () -> Unit,
     onContactDeveloper: () -> Unit,
@@ -137,6 +144,24 @@ fun TutorHeaderBar(
                 }
 
                 Spacer(modifier = Modifier.width(2.dp))
+
+                if (onToggleSearch != null) {
+                    IconButton(onClick = onToggleSearch) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search Messages",
+                            tint = if (isSearchActive) StarYellow else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                        )
+                    }
+                }
+
+                IconButton(onClick = onToggleDarkMode) {
+                    Icon(
+                        imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                        contentDescription = if (isDarkMode) "Switch to Light Mode" else "Switch to Dark Mode",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                    )
+                }
 
                 IconButton(onClick = onShareChat) {
                     Icon(

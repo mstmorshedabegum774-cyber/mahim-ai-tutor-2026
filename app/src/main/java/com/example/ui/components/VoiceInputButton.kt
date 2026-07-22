@@ -14,7 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import java.util.Locale
 
 @Composable
 fun VoiceInputButton(
@@ -46,7 +45,8 @@ fun VoiceInputButton(
                     )
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD")
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "bn-BD")
-                    putExtra(RecognizerIntent.EXTRA_PROMPT, "মাহিমকে মুখে কথা বলে প্রশ্ন করো...")
+                    putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
+                    putExtra(RecognizerIntent.EXTRA_PROMPT, "কথা বলুন / Speak now (বাংলা / English)...")
                 }
                 speechLauncher.launch(intent)
             } catch (e: Exception) {
@@ -61,8 +61,4 @@ fun VoiceInputButton(
             tint = MaterialTheme.colorScheme.primary
         )
     }
-}
-
-private fun String?.isNull_or_blank(): Boolean {
-    return this == null || this.trim().isEmpty()
 }
