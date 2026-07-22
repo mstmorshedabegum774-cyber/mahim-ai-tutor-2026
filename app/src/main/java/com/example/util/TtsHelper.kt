@@ -23,7 +23,7 @@ class TtsHelper(context: Context) {
     init {
         tts = TextToSpeech(context.applicationContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                val bnLocale = Locale("bn", "BD")
+                val bnLocale = Locale.forLanguageTag("bn-BD")
                 val result = tts?.setLanguage(bnLocale)
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     Log.w("TtsHelper", "Bangla language not directly supported on this TTS engine, falling back to default locale.")
@@ -69,7 +69,7 @@ class TtsHelper(context: Context) {
         _isSpeaking.value = true
 
         val hasBengali = text.any { it in '\u0980'..'\u09FF' }
-        val targetLocale = if (hasBengali) Locale("bn", "BD") else Locale.US
+        val targetLocale = if (hasBengali) Locale.forLanguageTag("bn-BD") else Locale.US
         val res = tts?.setLanguage(targetLocale)
         if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
             tts?.setLanguage(Locale.ENGLISH)
