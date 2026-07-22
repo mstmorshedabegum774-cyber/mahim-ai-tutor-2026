@@ -1,0 +1,6 @@
+{
+  "name": "Mahim AI Tutor",
+  "description": "মাহিম এআই টিউটর - ছোট-বড় সবার জন্য এক সহজ, বন্ধুভাবাপন্ন ও কৌতূহলোদ্দীপক গৃহশিক্ষক।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
