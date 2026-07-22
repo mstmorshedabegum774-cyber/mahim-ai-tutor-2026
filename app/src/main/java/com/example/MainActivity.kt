@@ -17,7 +17,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -85,6 +90,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MahimTutorApp(viewModel: MainViewModel) {
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
@@ -132,8 +138,11 @@ fun MahimTutorApp(viewModel: MainViewModel) {
         )
     }
 
+    val isKeyboardVisible = WindowInsets.isImeVisible
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.statusBars,
         topBar = {
             TutorHeaderBar(
                 starsCount = userStats?.starsCount ?: 5,
@@ -143,28 +152,30 @@ fun MahimTutorApp(viewModel: MainViewModel) {
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp
-            ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { viewModel.setSelectedTab(0) },
-                    icon = { Icon(Icons.Default.ChatBubble, contentDescription = "Chat") },
-                    label = { Text("টিউটর আড্ডা", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { viewModel.setSelectedTab(1) },
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Saved") },
-                    label = { Text("প্রিয় উত্তর", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { viewModel.setSelectedTab(2) },
-                    icon = { Icon(Icons.Default.EmojiEvents, contentDescription = "Badges") },
-                    label = { Text("আমার ব্যাজ", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) }
-                )
+            if (!isKeyboardVisible) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 6.dp
+                ) {
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = { viewModel.setSelectedTab(0) },
+                        icon = { Icon(Icons.Default.ChatBubble, contentDescription = "Chat") },
+                        label = { Text("টিউটর আড্ডা", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = { viewModel.setSelectedTab(1) },
+                        icon = { Icon(Icons.Default.Star, contentDescription = "Saved") },
+                        label = { Text("প্রিয় উত্তর", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = { viewModel.setSelectedTab(2) },
+                        icon = { Icon(Icons.Default.EmojiEvents, contentDescription = "Badges") },
+                        label = { Text("আমার ব্যাজ", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) }
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -180,6 +191,7 @@ fun MahimTutorApp(viewModel: MainViewModel) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
+                            .navigationBarsPadding()
                             .imePadding()
                     ) {
                         // Learning Mode Segment Bar

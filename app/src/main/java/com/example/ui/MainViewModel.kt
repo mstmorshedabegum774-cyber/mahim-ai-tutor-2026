@@ -232,8 +232,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _showCelebrationDialog.value = newlyEarnedBadge
             }
 
-            // 3. Build history from recent messages
-            val recentList = messages.value.takeLast(6).map { Pair(it.sender, it.text) }
+            // 3. Build history from clean recent messages
+            val recentList = messages.value
+                .filter { it.categoryTag != "Error" && it.categoryTag != "Welcome" }
+                .takeLast(6)
+                .map { Pair(it.sender, it.text) }
 
             // 4. Call Gemini Repository
             val result = geminiRepo.generateTutorResponse(
@@ -248,20 +251,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     text = tutorReply,
                     categoryTag = _learningMode.value
                 )
-                val newId = dao.insertMessage(mahimMsg)
+                dao.insertMessage(mahimMsg)
                 _isLoading.value = false
-
-                // Optionally read out loud automatically or on user demand
             }.onFailure { err ->
                 Log.e("MainViewModel", "Error getting tutor response", err)
+                val fallbackText = if (err.message?.contains("key not configured") == true) {
+                    "ছোট্ট বন্ধু! AI Studio-র Secrets প্যানেলে GEMINI_API_KEY যুক্ত করলে আমি তোমার সব নতুন প্রশ্নের ঝটপট সুন্দর উত্তর দেব! তোমার প্রশ্নটি ছিল: \"$trimmedText\" - এটি খুব বুদ্ধিমত্তার প্রশ্ন!"
+                } else {
+                    "আহা! নেটওয়ার্ক কানেকশন একটু ব্যস্ত ছিল। তবে বন্ধু, তোমার প্রশ্ন: \"$trimmedText\" চমৎকার! আর একবার প্রশ্ন করে দেখো তো, আমি প্রস্তুত!"
+                }
                 val fallbackMsg = ChatMessageEntity(
                     sender = "MAHIM",
-                    text = "আহা! আমার নেটওয়ার্কে কিছুটা সমস্যা হয়েছে। তবে চিন্তা করো না বন্ধু, আবার প্রশ্ন করো তো!",
-                    categoryTag = "Error"
+                    text = fallbackText,
+                    categoryTag = _learningMode.value
                 )
                 dao.insertMessage(fallbackMsg)
                 _isLoading.value = false
-                _errorMessage.value = "সংযোগ চেষ্টা ব্যর্থ হয়েছে"
             }
         }
     }

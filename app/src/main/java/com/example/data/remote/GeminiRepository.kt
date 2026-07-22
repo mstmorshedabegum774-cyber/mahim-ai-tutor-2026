@@ -38,9 +38,13 @@ class GeminiRepository {
         learningMode: String = "GENERAL" // "GENERAL", "QUIZ", "STORY"
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val apiKey = BuildConfig.GEMINI_API_KEY
-            if (apiKey.isBlank()) {
-                return@withContext Result.failure(Exception("Gemini API key is missing in BuildConfig."))
+            val apiKey = BuildConfig.GEMINI_API_KEY.ifBlank {
+                System.getenv("GEMINI_API_KEY") ?: ""
+            }
+
+            if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+                Log.w("GeminiRepository", "Gemini API key is missing or default placeholder.")
+                return@withContext Result.failure(Exception("Gemini API key not configured."))
             }
 
             // Adjust prompt prefix based on learning mode
@@ -56,27 +60,42 @@ class GeminiRepository {
                 prompt
             }
 
-            // Construct JSON request body manually using org.json for absolute reliability
+            // 1. Sanitize history so that roles strictly alternate (user -> model -> user -> model)
+            val filteredHistory = mutableListOf<Pair<String, String>>()
+            val recentItems = history.takeLast(10)
+            for ((sender, text) in recentItems) {
+                if (text.isBlank()) continue
+                // Omit the message if it's identical to the current prompt to avoid consecutive 'user' entries
+                if (sender == "USER" && text.trim() == prompt.trim()) continue
+                
+                val role = if (sender == "USER") "user" else "model"
+                if (filteredHistory.isNotEmpty() && filteredHistory.last().first == role) {
+                    // Do not append consecutive identical roles
+                    continue
+                }
+                filteredHistory.add(Pair(role, text))
+            }
+
+            // Ensure history ends on 'model' role so appending current prompt results in 'user' role
+            if (filteredHistory.isNotEmpty() && filteredHistory.last().first == "user") {
+                filteredHistory.removeAt(filteredHistory.size - 1)
+            }
+
+            // Construct JSON request body
             val requestJson = JSONObject().apply {
-                // System Instruction
                 put("systemInstruction", JSONObject().apply {
                     put("parts", JSONArray().put(JSONObject().put("text", systemInstructionText)))
                 })
 
-                // Contents array with history + current prompt
                 val contentsArray = JSONArray()
-
-                // Include last 6 history items for context
-                val recentHistory = history.takeLast(6)
-                for ((sender, text) in recentHistory) {
-                    val role = if (sender == "USER") "user" else "model"
+                for ((role, text) in filteredHistory) {
                     contentsArray.put(JSONObject().apply {
                         put("role", role)
                         put("parts", JSONArray().put(JSONObject().put("text", text)))
                     })
                 }
 
-                // Add current prompt
+                // Add current user prompt as final item
                 contentsArray.put(JSONObject().apply {
                     put("role", "user")
                     put("parts", JSONArray().put(JSONObject().put("text", finalUserPrompt)))
@@ -84,44 +103,59 @@ class GeminiRepository {
 
                 put("contents", contentsArray)
 
-                // Generation Config
                 put("generationConfig", JSONObject().apply {
                     put("temperature", 0.7)
                     put("maxOutputTokens", 800)
                 })
             }
 
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+            val candidateModels = listOf(
+                "gemini-3.5-flash",
+                "gemini-2.5-flash",
+                "gemini-1.5-flash",
+                "gemini-2.0-flash"
+            )
+
             val mediaType = "application/json; charset=utf-8".toMediaType()
-            val body = requestJson.toString().toRequestBody(mediaType)
+            val bodyStr = requestJson.toString()
 
-            val httpRequest = Request.Builder()
-                .url(url)
-                .post(body)
-                .build()
+            var lastErrorMsg = ""
 
-            client.newCall(httpRequest).execute().use { response ->
-                val responseStr = response.body?.string() ?: ""
-                if (!response.isSuccessful) {
-                    Log.e("GeminiRepository", "API Error (${response.code}): $responseStr")
-                    return@withContext Result.failure(Exception("Gemini API error: HTTP ${response.code}"))
-                }
+            for (model in candidateModels) {
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+                val body = bodyStr.toRequestBody(mediaType)
+                val httpRequest = Request.Builder().url(url).post(body).build()
 
-                val responseJson = JSONObject(responseStr)
-                val candidates = responseJson.optJSONArray("candidates")
-                if (candidates != null && candidates.length() > 0) {
-                    val firstCandidate = candidates.getJSONObject(0)
-                    val contentObj = firstCandidate.optJSONObject("content")
-                    val partsArr = contentObj?.optJSONArray("parts")
-                    if (partsArr != null && partsArr.length() > 0) {
-                        val replyText = partsArr.getJSONObject(0).optString("text", "")
-                        if (replyText.isNotBlank()) {
-                            return@withContext Result.success(replyText)
+                try {
+                    client.newCall(httpRequest).execute().use { response ->
+                        val responseStr = response.body?.string() ?: ""
+                        if (response.isSuccessful) {
+                            val responseJson = JSONObject(responseStr)
+                            val candidates = responseJson.optJSONArray("candidates")
+                            if (candidates != null && candidates.length() > 0) {
+                                val firstCandidate = candidates.getJSONObject(0)
+                                val contentObj = firstCandidate.optJSONObject("content")
+                                val partsArr = contentObj?.optJSONArray("parts")
+                                if (partsArr != null && partsArr.length() > 0) {
+                                    val replyText = partsArr.getJSONObject(0).optString("text", "")
+                                    if (replyText.isNotBlank()) {
+                                        Log.i("GeminiRepository", "Successfully generated response using model: $model")
+                                        return@withContext Result.success(replyText)
+                                    }
+                                }
+                            }
+                        } else {
+                            Log.e("GeminiRepository", "Model $model returned HTTP ${response.code}: $responseStr")
+                            lastErrorMsg = "HTTP ${response.code}: $responseStr"
                         }
                     }
+                } catch (e: Exception) {
+                    Log.e("GeminiRepository", "Failed request for model $model", e)
+                    lastErrorMsg = e.message ?: "Network error"
                 }
-                return@withContext Result.failure(Exception("empty response from Mahim AI Tutor"))
             }
+
+            return@withContext Result.failure(Exception("Gemini API error: $lastErrorMsg"))
         } catch (e: Exception) {
             Log.e("GeminiRepository", "Failed to connect to Mahim AI Tutor", e)
             return@withContext Result.failure(e)
