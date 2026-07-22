@@ -68,6 +68,7 @@ import com.example.ui.components.BadgesAndAchievementsView
 import com.example.ui.components.BookmarkedMessagesView
 import com.example.ui.components.CelebrationDialog
 import com.example.ui.components.ChatMessageBubble
+import com.example.ui.components.ContactDeveloperDialog
 import com.example.ui.components.ModeSelectorBar
 import com.example.ui.components.SubjectCategoryChips
 import com.example.ui.components.TutorHeaderBar
@@ -106,6 +107,7 @@ fun MahimTutorApp(viewModel: MainViewModel) {
     val currentlySpeakingId by viewModel.ttsHelper.currentlySpeakingId.collectAsStateWithLifecycle()
 
     var inputText by remember { mutableStateOf("") }
+    var showContactDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     // If no active user session and not in guest mode, show AuthScreen
@@ -138,6 +140,12 @@ fun MahimTutorApp(viewModel: MainViewModel) {
         )
     }
 
+    if (showContactDialog) {
+        ContactDeveloperDialog(
+            onDismiss = { showContactDialog = false }
+        )
+    }
+
     val isKeyboardVisible = WindowInsets.isImeVisible
 
     Scaffold(
@@ -148,7 +156,8 @@ fun MahimTutorApp(viewModel: MainViewModel) {
                 starsCount = userStats?.starsCount ?: 5,
                 currentUser = currentUser,
                 onClearChat = { viewModel.clearChatHistory() },
-                onLogout = { viewModel.logout() }
+                onLogout = { viewModel.logout() },
+                onContactDeveloper = { showContactDialog = true }
             )
         },
         bottomBar = {

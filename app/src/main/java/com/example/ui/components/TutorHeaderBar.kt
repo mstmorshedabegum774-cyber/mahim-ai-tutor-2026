@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -42,6 +43,7 @@ fun TutorHeaderBar(
     currentUser: UserAccountEntity?,
     onClearChat: () -> Unit,
     onLogout: () -> Unit,
+    onContactDeveloper: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -133,6 +135,14 @@ fun TutorHeaderBar(
                 }
 
                 Spacer(modifier = Modifier.width(2.dp))
+
+                IconButton(onClick = onContactDeveloper) {
+                    Icon(
+                        imageVector = Icons.Default.Call,
+                        contentDescription = "Contact Developer",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
 
                 IconButton(onClick = onClearChat) {
                     Icon(
