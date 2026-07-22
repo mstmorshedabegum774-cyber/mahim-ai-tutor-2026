@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +45,7 @@ fun TutorHeaderBar(
     onClearChat: () -> Unit,
     onLogout: () -> Unit,
     onContactDeveloper: () -> Unit,
+    onShareChat: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -135,6 +137,14 @@ fun TutorHeaderBar(
                 }
 
                 Spacer(modifier = Modifier.width(2.dp))
+
+                IconButton(onClick = onShareChat) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share Chat",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+                }
 
                 IconButton(onClick = onContactDeveloper) {
                     Icon(

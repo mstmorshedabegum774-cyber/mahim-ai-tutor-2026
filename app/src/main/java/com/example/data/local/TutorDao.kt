@@ -23,6 +23,9 @@ interface TutorDao {
     @Query("DELETE FROM chat_messages")
     suspend fun clearAllMessages()
 
+    @Query("SELECT COUNT(*) FROM chat_messages")
+    suspend fun getMessageCount(): Int
+
     @Query("SELECT * FROM user_stats WHERE id = 1")
     fun getUserStats(): Flow<UserStatsEntity?>
 

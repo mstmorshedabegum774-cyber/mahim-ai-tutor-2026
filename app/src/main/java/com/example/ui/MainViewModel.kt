@@ -10,6 +10,7 @@ import com.example.data.local.ChatMessageEntity
 import com.example.data.local.UserAccountEntity
 import com.example.data.local.UserStatsEntity
 import com.example.data.remote.GeminiRepository
+import com.example.data.repository.TutorRepository
 import com.example.util.TtsHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,7 +22,7 @@ import kotlinx.coroutines.launch
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
-    private val dao = db.tutorDao()
+    private val repository = TutorRepository(db.tutorDao())
     private val geminiRepo = GeminiRepository()
 
     val ttsHelper = TtsHelper(application)
@@ -35,22 +36,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isGuest = MutableStateFlow(prefs.getBoolean("is_guest_mode", false))
     val isGuest: StateFlow<Boolean> = _isGuest.asStateFlow()
 
-    // UI States
-    val messages: StateFlow<List<ChatMessageEntity>> = dao.getAllMessages()
+    // UI States - Local Room Database persistence
+    val messages: StateFlow<List<ChatMessageEntity>> = repository.allMessages
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val bookmarkedMessages: StateFlow<List<ChatMessageEntity>> = dao.getBookmarkedMessages()
+    val bookmarkedMessages: StateFlow<List<ChatMessageEntity>> = repository.bookmarkedMessages
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val userStats: StateFlow<UserStatsEntity?> = dao.getUserStats()
+    val userStats: StateFlow<UserStatsEntity?> = repository.userStats
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -73,22 +74,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val showCelebrationDialog: StateFlow<String?> = _showCelebrationDialog.asStateFlow()
 
     init {
-        // Restore active user session
+        // Restore active user session from Room / SharedPreferences
         val savedEmail = prefs.getString("logged_in_email", null)
         if (!savedEmail.isNullOrEmpty()) {
             viewModelScope.launch {
-                val user = dao.getUserAccountByEmail(savedEmail)
-                if (user != null) {
-                    _currentUser.value = user
+                repository.getUserAccountByEmail(savedEmail).onSuccess { user ->
+                    if (user != null) {
+                        _currentUser.value = user
+                    }
                 }
             }
         }
 
-        // Initialize default user stats if missing
+        // Initialize default user stats in Room if missing
         viewModelScope.launch {
-            dao.getUserStats().collect { stats ->
+            repository.userStats.collect { stats ->
                 if (stats == null) {
-                    dao.insertOrUpdateUserStats(
+                    repository.insertOrUpdateUserStats(
                         UserStatsEntity(
                             id = 1,
                             starsCount = 5,
@@ -100,25 +102,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Add welcome message if chat is empty
+        // Ensure welcome message in Room database if chat history is empty
         viewModelScope.launch {
-            dao.getAllMessages().collect { list ->
-                if (list.isEmpty()) {
-                    val welcomeMsg = ChatMessageEntity(
-                        sender = "MAHIM",
-                        text = "হ্যালো ছোট্ট বন্ধু! 👋 আমি মাহিম এআই টিউটর (Mahim AI Tutor)। তোমার আজ কী শিখতে বা জানতে ইচ্ছে করছে? যেকোনো প্রশ্ন করতে পারো—বিজ্ঞান, গণিত, মহাকাশ বা পশুপাখির গল্প!",
-                        categoryTag = "Welcome"
-                    )
-                    dao.insertMessage(welcomeMsg)
-                }
-            }
+            repository.ensureWelcomeMessageIfEmpty()
         }
     }
 
     fun login(identifier: String, password: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            try {
-                val user = dao.getUserAccountByIdentifier(identifier)
+            repository.getUserAccountByIdentifier(identifier).onSuccess { user ->
                 if (user == null) {
                     onResult(false, "এই ইমেইল বা ইউজারনেম পাওয়া যায়নি।")
                 } else if (user.passwordHash != password) {
@@ -129,7 +121,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     prefs.edit().putString("logged_in_email", user.email).putBoolean("is_guest_mode", false).apply()
                     onResult(true, null)
                 }
-            } catch (e: Exception) {
+            }.onFailure { e ->
                 Log.e("MainViewModel", "Login error", e)
                 onResult(false, "লগইন করার সময় ভুল হয়েছে: ${e.message}")
             }
@@ -138,11 +130,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun signUp(username: String, email: String, password: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
-            try {
-                val existing = dao.getUserAccountByEmail(email)
+            repository.getUserAccountByEmail(email).onSuccess { existing ->
                 if (existing != null) {
                     onResult(false, "এই ইমেইল দিয়ে ইতোমধ্যে অ্যাকাউন্ট আছে। লগইন করার চেষ্টা করুন।")
-                    return@launch
+                    return@onSuccess
                 }
 
                 val newUser = UserAccountEntity(
@@ -150,12 +141,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     username = username,
                     passwordHash = password
                 )
-                dao.insertUserAccount(newUser)
-                _currentUser.value = newUser
-                _isGuest.value = false
-                prefs.edit().putString("logged_in_email", email).putBoolean("is_guest_mode", false).apply()
-                onResult(true, null)
-            } catch (e: Exception) {
+                repository.insertUserAccount(newUser).onSuccess {
+                    _currentUser.value = newUser
+                    _isGuest.value = false
+                    prefs.edit().putString("logged_in_email", email).putBoolean("is_guest_mode", false).apply()
+                    onResult(true, null)
+                }.onFailure { e ->
+                    Log.e("MainViewModel", "SignUp error", e)
+                    onResult(false, "অ্যাকাউন্ট তৈরি সম্ভব হয়নি। অন্য ইমেইল দিয়ে চেষ্টা করুন।")
+                }
+            }.onFailure { e ->
                 Log.e("MainViewModel", "SignUp error", e)
                 onResult(false, "অ্যাকাউন্ট তৈরি সম্ভব হয়নি। অন্য ইমেইল দিয়ে চেষ্টা করুন।")
             }
@@ -193,15 +188,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _errorMessage.value = null
 
         viewModelScope.launch {
-            // 1. Save User message to Room
+            // 1. Save User message to Room database
             val userMsg = ChatMessageEntity(
                 sender = "USER",
                 text = trimmedText,
                 categoryTag = _learningMode.value
             )
-            dao.insertMessage(userMsg)
+            repository.insertMessage(userMsg)
 
-            // 2. Update user stats (questions count, stars)
+            // 2. Update user stats in Room database
             val currentStats = userStats.value ?: UserStatsEntity()
             val newQuestionsCount = currentStats.totalQuestionsAsked + 1
             val newStars = currentStats.starsCount + 1
@@ -220,7 +215,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 newlyEarnedBadge = "ধাঁধা মাষ্টার"
             }
 
-            dao.insertOrUpdateUserStats(
+            repository.insertOrUpdateUserStats(
                 currentStats.copy(
                     starsCount = newStars,
                     totalQuestionsAsked = newQuestionsCount,
@@ -232,7 +227,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _showCelebrationDialog.value = newlyEarnedBadge
             }
 
-            // 3. Build history from clean recent messages
+            // 3. Build context history from recent messages in Room
             val recentList = messages.value
                 .filter { it.categoryTag != "Error" && it.categoryTag != "Welcome" }
                 .takeLast(6)
@@ -251,7 +246,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     text = tutorReply,
                     categoryTag = _learningMode.value
                 )
-                dao.insertMessage(mahimMsg)
+                repository.insertMessage(mahimMsg)
                 _isLoading.value = false
             }.onFailure { err ->
                 Log.e("MainViewModel", "Error getting tutor response", err)
@@ -265,7 +260,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     text = fallbackText,
                     categoryTag = _learningMode.value
                 )
-                dao.insertMessage(fallbackMsg)
+                repository.insertMessage(fallbackMsg)
                 _isLoading.value = false
             }
         }
@@ -273,19 +268,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleBookmark(messageId: Long, currentBookmarked: Boolean) {
         viewModelScope.launch {
-            dao.updateMessageBookmark(messageId, !currentBookmarked)
+            repository.updateBookmark(messageId, !currentBookmarked)
         }
     }
 
     fun clearChatHistory() {
         viewModelScope.launch {
-            dao.clearAllMessages()
+            repository.clearAllMessages()
             val welcomeMsg = ChatMessageEntity(
                 sender = "MAHIM",
                 text = "হ্যালো ছোট্ট বন্ধু! 👋 আমি মাহিম এআই টিউটর (Mahim AI Tutor)। নতুন করে আলোচনা শুরু করতে যেকোনো প্রশ্ন করো!",
                 categoryTag = "Welcome"
             )
-            dao.insertMessage(welcomeMsg)
+            repository.insertMessage(welcomeMsg)
         }
     }
 

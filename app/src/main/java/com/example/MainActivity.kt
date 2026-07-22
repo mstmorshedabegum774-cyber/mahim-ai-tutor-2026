@@ -69,6 +69,7 @@ import com.example.ui.components.BookmarkedMessagesView
 import com.example.ui.components.CelebrationDialog
 import com.example.ui.components.ChatMessageBubble
 import com.example.ui.components.ContactDeveloperDialog
+import com.example.ui.components.ShareChatDialog
 import com.example.ui.components.ModeSelectorBar
 import com.example.ui.components.SubjectCategoryChips
 import com.example.ui.components.TutorHeaderBar
@@ -108,6 +109,7 @@ fun MahimTutorApp(viewModel: MainViewModel) {
 
     var inputText by remember { mutableStateOf("") }
     var showContactDialog by remember { mutableStateOf(false) }
+    var showShareDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     // If no active user session and not in guest mode, show AuthScreen
@@ -146,6 +148,13 @@ fun MahimTutorApp(viewModel: MainViewModel) {
         )
     }
 
+    if (showShareDialog) {
+        ShareChatDialog(
+            messages = messages,
+            onDismiss = { showShareDialog = false }
+        )
+    }
+
     val isKeyboardVisible = WindowInsets.isImeVisible
 
     Scaffold(
@@ -157,7 +166,8 @@ fun MahimTutorApp(viewModel: MainViewModel) {
                 currentUser = currentUser,
                 onClearChat = { viewModel.clearChatHistory() },
                 onLogout = { viewModel.logout() },
-                onContactDeveloper = { showContactDialog = true }
+                onContactDeveloper = { showContactDialog = true },
+                onShareChat = { showShareDialog = true }
             )
         },
         bottomBar = {
